@@ -184,7 +184,12 @@ struct handles {
 
 struct handles* handles = NULL;
 
-#define HANDLES() struct handles local_handles = { .next = handles }; handles = &local_handles
+void pop_handles(void* local_handles) {
+  (void)local_handles;
+  handles = handles->next;
+}
+
+#define HANDLES() struct handles local_handles __attribute__((__cleanup__(pop_handles))) = { .next = handles }; handles = &local_handles
 #define GC_PROTECT(x) local_handles.stack[local_handles.stack_pointer++] = (struct gc_obj**)(&x)
 #define END_HANDLES() handles = local_handles.next
 
@@ -214,6 +219,5 @@ int main() {
   collect(heap);
   fprintf(stderr, "num3: %p with size 0x%lx\n", num3, heap_object_size(num3));
   fprintf(stderr, "num4: %p with size 0x%lx\n", num4, heap_object_size(num4));
-  END_HANDLES();
   return 0;
 }
