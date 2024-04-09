@@ -176,34 +176,44 @@ struct gc_obj* mkcons(struct gc_heap *heap, struct gc_obj *car, struct gc_obj *c
   return (struct gc_obj*)obj;
 }
 
-struct gc_obj** stack[10];
-size_t stack_pointer = 0;
+struct handles {
+  struct gc_obj** stack[10];
+  size_t stack_pointer;
+  struct handles* next;
+};
 
-#define PUSH(x) stack[stack_pointer++] = (struct gc_obj**)(&x)
-#define POP() stack[--stack_pointer]
+struct handles* handles = NULL;
+
+#define HANDLES() struct handles local_handles = { .next = handles }; handles = &local_handles
+#define GC_PROTECT(x) local_handles.stack[local_handles.stack_pointer++] = (struct gc_obj**)(&x)
+#define END_HANDLES() handles = local_handles.next
 
 size_t trace_roots(struct gc_heap *heap,
                    void (*visit)(struct gc_obj **field,
                                  struct gc_heap *heap)) {
-  for (size_t i = 0; i < stack_pointer; i++) {
-    visit(stack[i], heap);
+  for (struct handles *h = handles; h; h = h->next) {
+    for (size_t i = 0; i < h->stack_pointer; i++) {
+      visit(h->stack[i], heap);
+    }
   }
 }
 
 int main() {
+  HANDLES();
   struct gc_heap *heap = make_heap(1024);
   struct gc_obj *num3 = mknum(heap, 3);
-  PUSH(num3);
+  GC_PROTECT(num3);
   fprintf(stderr, "num3: %p with size 0x%lx\n", num3, heap_object_size(num3));
   struct gc_obj *num4 = mknum(heap, 4);
-  PUSH(num4);
+  GC_PROTECT(num4);
   fprintf(stderr, "num4: %p with size 0x%lx\n", num4, heap_object_size(num4));
   struct gc_obj *obj = mkcons(heap, num3, num4);
-  PUSH(obj);
+  GC_PROTECT(obj);
   fprintf(stderr, "obj: %p with size 0x%lx\n", obj, heap_object_size(obj));
   fprintf(stderr, "COLLECTING\n");
   collect(heap);
   fprintf(stderr, "num3: %p with size 0x%lx\n", num3, heap_object_size(num3));
   fprintf(stderr, "num4: %p with size 0x%lx\n", num4, heap_object_size(num4));
+  END_HANDLES();
   return 0;
 }
