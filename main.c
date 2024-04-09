@@ -16,12 +16,13 @@ struct gc_obj {
 
 static const uintptr_t NOT_FORWARDED_BIT = 1;
 int is_forwarded(struct gc_obj *obj) {
-  return (obj->tag & NOT_FORWARDED_BIT) == 1;
+  return (obj->tag & NOT_FORWARDED_BIT) == 0;
 }
 void* forwarded(struct gc_obj *obj) { 
   return obj->forwarded;
 }
 void forward(struct gc_obj *from, struct gc_obj *to) {
+  fprintf(stderr, "forward: %p -> %p\n", from, to);
   from->forwarded = to;
 }
 
@@ -63,6 +64,7 @@ static struct gc_heap* make_heap(size_t size) {
 }
 
 struct gc_obj* copy(struct gc_heap *heap, struct gc_obj *obj) {
+  fprintf(stderr, "copy: %p\n", obj);
   size_t size = heap_object_size(obj);
   struct gc_obj *new_obj = (struct gc_obj*)heap->hp;
   memcpy(new_obj, obj, size);
@@ -113,10 +115,10 @@ retry:
 
 // Application
 
-// All even because we need to leave space for the NOT_FORWARDED_BIT.
+// All odd becase of the NOT_FORWARDED_BIT
 enum {
-  TAG_CONS = 0,
-  TAG_NUM = 2,
+  TAG_CONS = 1,
+  TAG_NUM = 3,
 };
 
 struct num {
@@ -129,6 +131,35 @@ struct cons {
   struct gc_obj *car;
   struct gc_obj *cdr;
 };
+
+size_t heap_object_size(struct gc_obj *obj) {
+  switch(obj->tag) {
+  case TAG_NUM:
+    return sizeof(struct num);
+  case TAG_CONS:
+    return sizeof(struct cons);
+  default:
+    fprintf(stderr, "unknown tag: %lu\n", obj->tag);
+    abort();
+  }
+}
+
+size_t trace_heap_object(struct gc_obj *obj, struct gc_heap *heap,
+                         void (*visit)(struct gc_obj **field,
+                                       struct gc_heap *heap)) {
+  switch(obj->tag) {
+  case TAG_NUM:
+    break;
+  case TAG_CONS:
+    visit(&((struct cons*)obj)->car, heap);
+    visit(&((struct cons*)obj)->cdr, heap);
+    break;
+  default:
+    fprintf(stderr, "unknown tag: %lu\n", obj->tag);
+    abort();
+  }
+  return heap_object_size(obj);
+}
 
 struct gc_obj* mknum(struct gc_heap *heap, int value) {
   struct num *obj = (struct num*)allocate(heap, sizeof *obj);
@@ -145,11 +176,31 @@ struct gc_obj* mkcons(struct gc_heap *heap, struct gc_obj *car, struct gc_obj *c
   return (struct gc_obj*)obj;
 }
 
+struct gc_obj* stack[10];
+size_t stack_pointer = 0;
+
+#define PUSH(x) stack[stack_pointer++] = (struct gc_obj*)(x)
+#define POP() stack[--stack_pointer]
+
+size_t trace_roots(struct gc_heap *heap,
+                   void (*visit)(struct gc_obj **field,
+                                 struct gc_heap *heap)) {
+  for (size_t i = 0; i < stack_pointer; i++) {
+    visit(&stack[i], heap);
+  }
+}
+
 int main() {
   struct gc_heap *heap = make_heap(1024);
   struct gc_obj *num3 = mknum(heap, 3);
+  PUSH(num3);
+  fprintf(stderr, "num3: %p with size 0x%lx\n", num3, heap_object_size(num3));
   struct gc_obj *num4 = mknum(heap, 4);
+  PUSH(num4);
+  fprintf(stderr, "num4: %p with size 0x%lx\n", num4, heap_object_size(num4));
   struct gc_obj *obj = mkcons(heap, num3, num4);
+  PUSH(obj);
+  fprintf(stderr, "obj: %p with size 0x%lx\n", obj, heap_object_size(obj));
   collect(heap);
   return 0;
 }
