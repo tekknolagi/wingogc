@@ -110,3 +110,46 @@ retry:
   heap->hp = new_hp;
   return (struct gc_obj*)addr;
 }
+
+// Application
+
+// All even because we need to leave space for the NOT_FORWARDED_BIT.
+enum {
+  TAG_CONS = 0,
+  TAG_NUM = 2,
+};
+
+struct num {
+  struct gc_obj HEAD;
+  int value;
+};
+
+struct cons {
+  struct gc_obj HEAD;
+  struct gc_obj *car;
+  struct gc_obj *cdr;
+};
+
+struct gc_obj* mknum(struct gc_heap *heap, int value) {
+  struct num *obj = (struct num*)allocate(heap, sizeof *obj);
+  obj->HEAD.tag = TAG_NUM;
+  obj->value = value;
+  return (struct gc_obj*)obj;
+}
+
+struct gc_obj* mkcons(struct gc_heap *heap, struct gc_obj *car, struct gc_obj *cdr) {
+  struct cons *obj = (struct cons*)allocate(heap, sizeof *obj);
+  obj->HEAD.tag = TAG_CONS;
+  obj->car = car;
+  obj->cdr = cdr;
+  return (struct gc_obj*)obj;
+}
+
+int main() {
+  struct gc_heap *heap = make_heap(1024);
+  struct gc_obj *num3 = mknum(heap, 3);
+  struct gc_obj *num4 = mknum(heap, 4);
+  struct gc_obj *obj = mkcons(heap, num3, num4);
+  collect(heap);
+  return 0;
+}
