@@ -176,17 +176,17 @@ struct gc_obj* mkcons(struct gc_heap *heap, struct gc_obj *car, struct gc_obj *c
   return (struct gc_obj*)obj;
 }
 
-struct gc_obj* stack[10];
+struct gc_obj** stack[10];
 size_t stack_pointer = 0;
 
-#define PUSH(x) stack[stack_pointer++] = (struct gc_obj*)(x)
+#define PUSH(x) stack[stack_pointer++] = (struct gc_obj**)(&x)
 #define POP() stack[--stack_pointer]
 
 size_t trace_roots(struct gc_heap *heap,
                    void (*visit)(struct gc_obj **field,
                                  struct gc_heap *heap)) {
   for (size_t i = 0; i < stack_pointer; i++) {
-    visit(&stack[i], heap);
+    visit(stack[i], heap);
   }
 }
 
@@ -201,6 +201,9 @@ int main() {
   struct gc_obj *obj = mkcons(heap, num3, num4);
   PUSH(obj);
   fprintf(stderr, "obj: %p with size 0x%lx\n", obj, heap_object_size(obj));
+  fprintf(stderr, "COLLECTING\n");
   collect(heap);
+  fprintf(stderr, "num3: %p with size 0x%lx\n", num3, heap_object_size(num3));
+  fprintf(stderr, "num4: %p with size 0x%lx\n", num4, heap_object_size(num4));
   return 0;
 }
