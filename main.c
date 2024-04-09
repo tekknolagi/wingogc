@@ -1,3 +1,11 @@
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <string.h>
+#include <stdio.h>
+
 struct gc_obj {
   union {
     uintptr_t tag;
@@ -43,13 +51,13 @@ static uintptr_t align_size(uintptr_t size) {
   return align(size, sizeof(uintptr_t));
 }
 
-struct gc_heap* make_heap(size_t size) {
+static struct gc_heap* make_heap(size_t size) {
   size = align(size, getpagesize());
   struct gc_heap *heap = malloc(sizeof(struct gc_heap));
   void *mem = mmap(NULL, size, PROT_READ|PROT_WRITE,
                    MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
   heap->to_space = heap->hp = (uintptr_t) mem;
-  heap->from_space = heap->limit = space->hp + size / 2;
+  heap->from_space = heap->limit = heap->hp + size / 2;
   heap->size = size;
   return heap;
 }
@@ -82,12 +90,12 @@ void collect(struct gc_heap *heap) {
   uintptr_t scan = heap->hp;
   trace_roots(heap, visit_field);
   while(scan < heap->hp) {
-    struct gc_obj *obj = scan;
+    struct gc_obj *obj = (struct gc_obj*)scan;
     scan += align_size(trace_heap_object(obj, heap, visit_field));
   }
 }
 
-inline struct gc_obj* allocate(struct gc_heap *heap, size_t size) {
+static inline struct gc_obj* allocate(struct gc_heap *heap, size_t size) {
 retry:
   uintptr_t addr = heap->hp;
   uintptr_t new_hp = align_size(addr + size);
