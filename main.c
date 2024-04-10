@@ -192,6 +192,7 @@ void pop_handles(void* local_handles) {
 #define HANDLES() struct handles local_handles __attribute__((__cleanup__(pop_handles))) = { .next = handles }; handles = &local_handles
 #define GC_PROTECT(x) local_handles.stack[local_handles.stack_pointer++] = (struct gc_obj**)(&x)
 #define END_HANDLES() handles = local_handles.next
+#define GC_HANDLE(type, name, val) type name = val; GC_PROTECT(name)
 
 size_t trace_roots(struct gc_heap *heap,
                    void (*visit)(struct gc_obj **field,
@@ -206,14 +207,11 @@ size_t trace_roots(struct gc_heap *heap,
 int main() {
   HANDLES();
   struct gc_heap *heap = make_heap(1024);
-  struct gc_obj *num3 = mknum(heap, 3);
-  GC_PROTECT(num3);
+  GC_HANDLE(struct gc_obj*, num3, mknum(heap, 3));
   fprintf(stderr, "num3: %p with size 0x%lx\n", num3, heap_object_size(num3));
-  struct gc_obj *num4 = mknum(heap, 4);
-  GC_PROTECT(num4);
+  GC_HANDLE(struct gc_obj*, num4, mknum(heap, 4));
   fprintf(stderr, "num4: %p with size 0x%lx\n", num4, heap_object_size(num4));
-  struct gc_obj *obj = mkcons(heap, num3, num4);
-  GC_PROTECT(obj);
+  GC_HANDLE(struct gc_obj*, obj, mkcons(heap, num3, num4));
   fprintf(stderr, "obj: %p with size 0x%lx\n", obj, heap_object_size(obj));
   fprintf(stderr, "COLLECTING\n");
   collect(heap);
