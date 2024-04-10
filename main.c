@@ -64,7 +64,6 @@ static struct gc_heap* make_heap(size_t size) {
 }
 
 struct gc_obj* copy(struct gc_heap *heap, struct gc_obj *obj) {
-  fprintf(stderr, "copy: %p\n", obj);
   size_t size = heap_object_size(obj);
   struct gc_obj *new_obj = (struct gc_obj*)heap->hp;
   memcpy(new_obj, obj, size);
